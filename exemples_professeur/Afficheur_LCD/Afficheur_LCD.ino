@@ -3,8 +3,8 @@
 
 rgb_lcd affi_lcd;
 
-const int colorR = 0;
-const int colorG =255;
+const int colorR = 255;
+const int colorG = 0;
 const int colorB = 0;
 
 void setup() {
