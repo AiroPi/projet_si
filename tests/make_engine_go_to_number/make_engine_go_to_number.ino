@@ -1,7 +1,9 @@
 #include <multi_channel_relay.h>
 
 #define CaptPosRef 3
-#define BPGo
+// #define BPGo
+#define Relais_BM 4
+#define Capteur_Fin_Tour_BM 2
 
 Multi_Channel_Relay pontH;
 
@@ -12,15 +14,22 @@ int refPositions[8] = {1, 5, 10, 25, 50, 100, 500, 1000};
 
 
 void setup() {
-    Serial.begin(115200);
-    Serial.println("Type something!");
+    pinMode(CaptPosRef, INPUT);
+    pinMode(Relais_BM, OUTPUT);
+    pinMode(Capteur_Fin_Tour_BM, INPUT);
+    pontH.begin(0x11);
+
+    // Retour en position initiale
+    pontH.channelCtrl(0b0000);
+    digitalWrite(Relais_BM, LOW); // Front descendant pour alimenter le moteur
+    while (digitalRead(Capteur_Fin_Tour_BM) == LOW); // Attente capteur fin de tour
+    digitalWrite(Relais_BM, HIGH); // Front montant pour couper le moteur
 
     // TODO: Determiner la position initale
     position = 0;
 
-    pinMode(CaptPosRef, INPUT);
-    pontH.begin(0x11);
-    pontH.channelCtrl(0b0000);
+    Serial.begin(115200);
+    Serial.println("Type something!");
 }
 
 void loop() {
@@ -71,9 +80,14 @@ void loop() {
         position = positionGoal;
 
         for (int i = 0; i < moveGoal; i++) {
-            while (digitalRead(CaptPosRef) == HIGH){}
-            while (digitalRead(CaptPosRef) == LOW){}
+            while (digitalRead(CaptPosRef) == HIGH);
+            while (digitalRead(CaptPosRef) == LOW);
         }
         pontH.channelCtrl(0b0000);
+
+        digitalWrite(Relais_BM,LOW);                        // Front descendant pour alimenter le moteur
+        delay(100);                                         // Attente destinée à laisser la came quitter le capteur
+        while(digitalRead(Capteur_Fin_Tour_BM) == LOW);     // Attente activation capteur fin de tour
+        digitalWrite(Relais_BM,HIGH); 
     }
 }

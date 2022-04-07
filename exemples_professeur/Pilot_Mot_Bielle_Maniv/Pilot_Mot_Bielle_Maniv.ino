@@ -13,7 +13,7 @@ void setup()
     digitalWrite(Relais_BM,LOW);                        // Front descendant pour alimenter le moteur
     while(digitalRead(Capteur_Fin_Tour_BM) == LOW);     // Attente capteur fin de tour
     digitalWrite(Relais_BM,HIGH);                       // Front montant pour couper le moteur
-    
+
     pinMode(BP,INPUT);
 }
 void loop()
@@ -25,4 +25,3 @@ void loop()
     while(digitalRead(Capteur_Fin_Tour_BM) == LOW);     // Attente activation capteur fin de tour
     digitalWrite(Relais_BM,HIGH);                       // Front montant pour couper le moteur
 }
-
