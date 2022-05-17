@@ -10,7 +10,7 @@
 
 // define objects
 Multi_Channel_Relay HBridge;
-Pixy2 Pixy;
+Pixy2 pixy;
 
 // set up variables
 int Position;
@@ -25,13 +25,13 @@ void setup() {
   pinMode(CAPTOR_BM_END_TURN, INPUT);
 
   // Setup pixy
-    Pixy.init();
+  pixy.init();
 
   // Setup HBridge
-    HBridge.begin(0x11);
+  HBridge.begin(0x11);
 
   initProject();
-
+  checkOrder();
 }
 
 void loop() {
@@ -47,10 +47,60 @@ void initProject() {
   HBridge.channelCtrl(0b0000);
 
   // Turn off the light
-  Pixy.setLamp(LOW, LOW);
+  pixy.setLamp(LOW, LOW);
+  pixy.setLED(0, 0, 0);
+  pixy.changeProg("line");
 
   // Set BM motor initial position
   digitalWrite(RELAY_BM_MOTOR, LOW); // Front descendant pour alimenter le moteur
   while (digitalRead(CAPTOR_BM_END_TURN) == LOW); // Attente capteur fin de tour
   digitalWrite(RELAY_BM_MOTOR, HIGH); // Front montant pour couper le moteur
+}
+
+void checkOrder() {
+  if (digitalRead(CAPTOR_IF_POSITION_TRAY) == LOW) {
+    rotateTrayCounterClockwise();
+    while (digitalRead(CAPTOR_IF_POSITION_TRAY) == LOW);
+    stopTray();
+  }
+  int value = readBarCode();
+  if (value == -1) return 2
+
+  for (uint8_t i = 0; i < 8; i++) {
+    value += 1;
+    if (readBarCode() != value) {
+      if (value == -1) return 2
+      return 0
+    }
+    rotateTrayCounterClockwise();
+    while (digitalRead(CaptPosRef) == HIGH);
+    while (digitalRead(CaptPosRef) == LOW);
+    stopTray();
+  }
+  return 1
+}
+
+void readBarCode() {
+  int8_t i;
+  char buf[128];
+  pixy.setLamp(HIGH, LOW);
+  pixy.line.getAllFeatures();
+  pixy.setLamp(LOW, LOW);
+
+  if (lenght(pixy.line.barcodes) == 0) {
+    return -1
+  }
+  return pixy.line.barcodes[i].m_code
+}
+
+void rotateTrayCounterClockwise() {
+  HBridge.channelCtrl(0b1001);
+}
+
+void rotateTrayCounterClockwise() {
+  HBridge.channelCtrl(0b0110);
+}
+
+void stopTray() {
+  HBridge.channelCtrl(0b0000);
 }
