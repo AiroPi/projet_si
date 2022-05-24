@@ -51,15 +51,13 @@ void setup()
   raspberrySerial.begin(9600);
   // Serial.println(getToken());
 
-  while (true) {
-    Serial.println(digitalRead(CAPTOR_IF_POSITION_TRAY));
-  }
   start();
 }
 
 void loop()
 {
   int token = getToken();
+  nbTokens[token] += 1;
   goToGoal(token);
 }
 
@@ -75,12 +73,13 @@ void start()
 
   // stop BM motor
   digitalWrite(RELAY_BM_MOTOR, HIGH);
-  
+
   lcdDisplay.setCursor(1, 0);
   lcdDisplay.print("Appuyez bouton 1");
   while (digitalRead(CAPTOR_BUTTON_1) == LOW)
     ;
-  while (digitalRead(CAPTOR_BUTTON_1) == HIGH);
+  while (digitalRead(CAPTOR_BUTTON_1) == HIGH)
+    ;
   initialize();
 }
 
@@ -98,12 +97,13 @@ void initialize()
     nbTokens[i] = 0;
   }
 
+  screenState = 0;
+  setScreen(screenState);
+
   while (true)
   {
     int orderStatus = checkOrder();
-    Serial.print("orderStatus : ");
-    Serial.println(orderStatus);
-    
+
     if (orderStatus == 2)
     {
       lcdDisplay.clear();
@@ -113,8 +113,8 @@ void initialize()
       lcdDisplay.print("Appuyez bouton 1");
       while (digitalRead(CAPTOR_BUTTON_1) == LOW)
         ;
-      while (digitalRead(CAPTOR_BUTTON_1) == HIGH);
-
+      while (digitalRead(CAPTOR_BUTTON_1) == HIGH)
+        ;
     }
     else if (orderStatus == 0)
     {
@@ -124,9 +124,10 @@ void initialize()
       lcdDisplay.setCursor(0, 1);
       lcdDisplay.print("Appuyez bouton 1");
 
-      // TODO: message "Mauvais ordre\nAppuyez bouton 1"
-      while (digitalRead(CAPTOR_BUTTON_1) == LOW);
-      while (digitalRead(CAPTOR_BUTTON_1) == HIGH);
+      while (digitalRead(CAPTOR_BUTTON_1) == LOW)
+        ;
+      while (digitalRead(CAPTOR_BUTTON_1) == HIGH)
+        ;
     }
     else
     {
@@ -145,8 +146,9 @@ int checkOrder()
   {
     rotateTrayClockwise();
     while (digitalRead(CAPTOR_IF_POSITION_TRAY) == LOW)
-      Serial.println(digitalRead(CAPTOR_IF_POSITION_TRAY));
-      ;
+    {
+      buttonsInterpreter();
+    };
     stopTray();
   }
   int value = readBarCode();
@@ -159,12 +161,17 @@ int checkOrder()
   {
     rotateTrayCounterClockwise();
     while (digitalRead(CAPTOR_IF_POSITION_TRAY) == HIGH)
-      ;
+    {
+      buttonsInterpreter();
+    };
     while (digitalRead(CAPTOR_IF_POSITION_TRAY) == LOW)
-      ;
+    {
+      buttonsInterpreter();
+    };
     stopTray();
     value += 1;
-    if (value > 7) {
+    if (value > 7)
+    {
       value -= 8;
     }
     int new_value = readBarCode();
@@ -176,7 +183,8 @@ int checkOrder()
     }
   }
   position = value + 2;
-  if (position > 7) {
+  if (position > 7)
+  {
     position -= 8;
   }
   return 1;
@@ -187,7 +195,11 @@ int readBarCode()
   int8_t i;
   char buf[128];
   pixy.setLamp(HIGH, LOW);
-  delay(500);
+  unsigned long start = millis();
+  while (millis() - start < 500)
+  {
+    buttonsInterpreter();
+  }
   pixy.line.getAllFeatures();
   pixy.setLamp(LOW, LOW);
 
@@ -224,14 +236,14 @@ void ejectToken()
   digitalWrite(RELAY_BM_MOTOR, HIGH); // Front montant pour couper le moteur
 }
 
-//int getToken()
-//{
-//  raspberrySerial.write("get");
-//  while (!raspberrySerial.available())
-//    ;
-//  int index_val = raspberrySerial.read();
-//  return index_val;
-//}
+int getToken()
+{
+  raspberrySerial.write("get");
+  while (!raspberrySerial.available())
+    ;
+  int index_val = raspberrySerial.read();
+  return index_val;
+}
 
 void goToGoal(int goal)
 {
@@ -276,37 +288,99 @@ void goToGoal(int goal)
   ejectToken();
 }
 
-void buttonsInterpreter() {
-  int action = 0;  // No button pressed. Nothing to do.
-  if (digitalRead(CAPTOR_BUTTON_1) == HIGH) {
+void buttonsInterpreter()
+{
+  int action = 0; // No button pressed. Nothing to do.
+  if (digitalRead(CAPTOR_BUTTON_1) == HIGH)
+  {
     action = 1; // Button 1 pressed. Pause the program.
-    while (digitalRead(CAPTOR_BUTTON_1) == HIGH) {
-      while (digitalRead(CAPTOR_BUTTON_2 == HIGH) {
-        action = 3; // Button 1 and button 2 pressed. Reset the program.        
+    while (digitalRead(CAPTOR_BUTTON_1) == HIGH)
+    {
+      while (digitalRead(CAPTOR_BUTTON_2 == HIGH))
+      {
+        action = 3; // Button 1 and button 2 pressed. Reset the program.
       }
     }
-  } else if (digitalRead(CAPTOR_BUTTON_2) == HIGH) {
+  }
+  else if (digitalRead(CAPTOR_BUTTON_2) == HIGH)
+  {
     action = 2; // Button 2 pressed. Switch the screen.
-    while (digitalRead(CAPTOR_BUTTON_2) == HIGH) {
-      while (digitalRead(CAPTOR_BUTTON_1) == HIGH) {
+    while (digitalRead(CAPTOR_BUTTON_2) == HIGH)
+    {
+      while (digitalRead(CAPTOR_BUTTON_1) == HIGH)
+      {
         action = 3;
       }
     }
   }
 
-  if (action == 1) {
+  if (action == 1)
+  {
     pauseProgram();
-  } else if (action == 2) {
+  }
+  else if (action == 2)
+  {
     switchScreen();
-  } else if (action == 3) {
+  }
+  else if (action == 3)
+  {
     start();
   }
 }
 
-void pauseProgram() {
-  // TODO
+void pauseProgram()
+{
+  lcdDisplay.clear();
+  lcdDisplay.setCursor(0, 0);
+  lcdDisplay.print("Pause");
+  lcdDisplay.setCursor(0, 1);
+  lcdDisplay.print("Appuyez bouton 1");
+  while (digitalRead(CAPTOR_BUTTON_1) == LOW)
+    ;
+  while (digitalRead(CAPTOR_BUTTON_1) == HIGH)
+    ;
 }
 
-void switchScreen() {
-  // TODO
+void switchScreen()
+{
+  screenState != screenState;
+  setScreen(screenState);
+}
+
+void setScreen(int screen)
+{
+  lcdDisplay.clear();
+
+  if (screen == 0)
+  {
+    lcdDisplay.setCursor(0, 0);
+    lcdDisplay.print("1000:   |500 :  ");
+    lcdDisplay.setCursor(0, 1);
+    lcdDisplay.print("100 :   |50  :  ");
+
+    lcdDisplay.setCursor(6, 0);
+    lcdDisplay.print(nbTokens[7]);
+    lcdDisplay.setCursor(14, 0);
+    lcdDisplay.print(nbTokens[6]);
+    lcdDisplay.setCursor(6, 1);
+    lcdDisplay.print(nbTokens[5]);
+    lcdDisplay.setCursor(14, 1);
+    lcdDisplay.print(nbTokens[4]);
+  }
+  else
+  {
+    lcdDisplay.setCursor(0, 0);
+    lcdDisplay.print("25  :   |10  :  ");
+    lcdDisplay.setCursor(0, 1);
+    lcdDisplay.print("5   :   |1   :  ");
+
+    lcdDisplay.setCursor(6, 0);
+    lcdDisplay.print(nbTokens[3]);
+    lcdDisplay.setCursor(14, 0);
+    lcdDisplay.print(nbTokens[2]);
+    lcdDisplay.setCursor(6, 1);
+    lcdDisplay.print(nbTokens[1]);
+    lcdDisplay.setCursor(14, 1);
+    lcdDisplay.print(nbTokens[0]);
+  }
 }
