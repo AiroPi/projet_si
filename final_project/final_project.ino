@@ -6,8 +6,8 @@
 #include <Wire.h>
 
 // Définition des ports utilisés :
-#define CAPTOR_IF_POSITION_TRAY 3
-#define RELAY_BM_MOTOR 4
+#define CAPTOR_IF_POSITION_TRAY 5
+#define RELAY_BM_MOTOR A3
 #define CAPTOR_BM_END_TURN 2
 #define CAPTOR_BUTTON_1 6
 #define CAPTOR_BUTTON_2 8
@@ -49,8 +49,11 @@ void setup()
   lcdDisplay.begin(16, 2);
 
   raspberrySerial.begin(9600);
-  Serial.println(getToken());
+  // Serial.println(getToken());
 
+  while (true) {
+    Serial.println(digitalRead(CAPTOR_IF_POSITION_TRAY));
+  }
   start();
 }
 
@@ -62,10 +65,22 @@ void loop()
 
 void start()
 {
+  // Stop the tray motor
+  HBridge.channelCtrl(0b0000);
+
+  // Turn off the light
+  pixy.setLamp(LOW, LOW);
+  pixy.setLED(0, 0, 0);
+  pixy.changeProg("line");
+
+  // stop BM motor
+  digitalWrite(RELAY_BM_MOTOR, HIGH);
+  
   lcdDisplay.setCursor(1, 0);
   lcdDisplay.print("Appuyez bouton 1");
   while (digitalRead(CAPTOR_BUTTON_1) == LOW)
     ;
+  while (digitalRead(CAPTOR_BUTTON_1) == HIGH);
   initialize();
 }
 
@@ -74,14 +89,6 @@ void initialize()
   /*
   Function to initialize all default values of the project
   */
-
-  // Stop the tray motor
-  HBridge.channelCtrl(0b0000);
-
-  // Turn off the light
-  pixy.setLamp(LOW, LOW);
-  pixy.setLED(0, 0, 0);
-  pixy.changeProg("line");
 
   // Set BM motor initial position
   ejectToken();
@@ -94,17 +101,32 @@ void initialize()
   while (true)
   {
     int orderStatus = checkOrder();
+    Serial.print("orderStatus : ");
+    Serial.println(orderStatus);
+    
     if (orderStatus == 2)
     {
-      // TODO: message "Boite manquante\nAppuyez bouton 1"
+      lcdDisplay.clear();
+      lcdDisplay.setCursor(0, 0);
+      lcdDisplay.print("Boite manquante");
+      lcdDisplay.setCursor(0, 1);
+      lcdDisplay.print("Appuyez bouton 1");
       while (digitalRead(CAPTOR_BUTTON_1) == LOW)
         ;
+      while (digitalRead(CAPTOR_BUTTON_1) == HIGH);
+
     }
-    else if (orderStatus == 1)
+    else if (orderStatus == 0)
     {
+      lcdDisplay.clear();
+      lcdDisplay.setCursor(0, 0);
+      lcdDisplay.print("Mauvais ordre");
+      lcdDisplay.setCursor(0, 1);
+      lcdDisplay.print("Appuyez bouton 1");
+
       // TODO: message "Mauvais ordre\nAppuyez bouton 1"
-      while (digitalRead(CAPTOR_BUTTON_1) == LOW)
-        ;
+      while (digitalRead(CAPTOR_BUTTON_1) == LOW);
+      while (digitalRead(CAPTOR_BUTTON_1) == HIGH);
     }
     else
     {
@@ -121,8 +143,9 @@ int checkOrder()
   */
   if (digitalRead(CAPTOR_IF_POSITION_TRAY) == LOW)
   {
-    rotateTrayCounterClockwise();
+    rotateTrayClockwise();
     while (digitalRead(CAPTOR_IF_POSITION_TRAY) == LOW)
+      Serial.println(digitalRead(CAPTOR_IF_POSITION_TRAY));
       ;
     stopTray();
   }
@@ -134,21 +157,28 @@ int checkOrder()
 
   for (uint8_t i = 0; i < 8; i++)
   {
-    value += 1;
-    if (readBarCode() != value)
-    {
-      if (value == -1)
-        return 2;
-      return 0;
-    }
     rotateTrayCounterClockwise();
     while (digitalRead(CAPTOR_IF_POSITION_TRAY) == HIGH)
       ;
     while (digitalRead(CAPTOR_IF_POSITION_TRAY) == LOW)
       ;
     stopTray();
+    value += 1;
+    if (value > 7) {
+      value -= 8;
+    }
+    int new_value = readBarCode();
+    if (new_value != value)
+    {
+      if (new_value == -1)
+        return 2;
+      return 0;
+    }
   }
-  position = value;
+  position = value + 2;
+  if (position > 7) {
+    position -= 8;
+  }
   return 1;
 }
 
@@ -157,13 +187,17 @@ int readBarCode()
   int8_t i;
   char buf[128];
   pixy.setLamp(HIGH, LOW);
+  delay(500);
   pixy.line.getAllFeatures();
   pixy.setLamp(LOW, LOW);
 
-  if (sizeof(pixy.line.barcodes) == 0)
+  if (pixy.line.numBarcodes == 0)
   {
+    Serial.println(-1);
     return -1;
   }
+  Serial.println(pixy.line.barcodes[i].m_code);
+
   return pixy.line.barcodes[i].m_code;
 }
 
@@ -190,14 +224,14 @@ void ejectToken()
   digitalWrite(RELAY_BM_MOTOR, HIGH); // Front montant pour couper le moteur
 }
 
-int getToken()
-{
-  raspberrySerial.write("get");
-  while (!raspberrySerial.available())
-    ;
-  int index_val = raspberrySerial.read();
-  return index_val;
-}
+//int getToken()
+//{
+//  raspberrySerial.write("get");
+//  while (!raspberrySerial.available())
+//    ;
+//  int index_val = raspberrySerial.read();
+//  return index_val;
+//}
 
 void goToGoal(int goal)
 {
@@ -240,4 +274,39 @@ void goToGoal(int goal)
   stopTray();
 
   ejectToken();
+}
+
+void buttonsInterpreter() {
+  int action = 0;  // No button pressed. Nothing to do.
+  if (digitalRead(CAPTOR_BUTTON_1) == HIGH) {
+    action = 1; // Button 1 pressed. Pause the program.
+    while (digitalRead(CAPTOR_BUTTON_1) == HIGH) {
+      while (digitalRead(CAPTOR_BUTTON_2 == HIGH) {
+        action = 3; // Button 1 and button 2 pressed. Reset the program.        
+      }
+    }
+  } else if (digitalRead(CAPTOR_BUTTON_2) == HIGH) {
+    action = 2; // Button 2 pressed. Switch the screen.
+    while (digitalRead(CAPTOR_BUTTON_2) == HIGH) {
+      while (digitalRead(CAPTOR_BUTTON_1) == HIGH) {
+        action = 3;
+      }
+    }
+  }
+
+  if (action == 1) {
+    pauseProgram();
+  } else if (action == 2) {
+    switchScreen();
+  } else if (action == 3) {
+    start();
+  }
+}
+
+void pauseProgram() {
+  // TODO
+}
+
+void switchScreen() {
+  // TODO
 }
